@@ -20,7 +20,8 @@ function buildFolders(fullPath) {
 	});
 }
 
-shows.forEach((show) => {
+shows.forEach((show, showIndex, showArray) => {
+	console.log(`\n\nProcessing ${showIndex + 1} of ${showArray.length + 1}...\n\n`);
 	var artist = null;
 	var date = null;
 	var venue = null;
@@ -61,15 +62,13 @@ shows.forEach((show) => {
 
 	var folderName = `${date} ${venue}, ${location}`;
 	var fullPath = path.join(commander.path, artist, year, folderName);	
-
 	buildFolders(fullPath);
 
 	if (poster) {
-		var folderPath = path.join(fullPath, "folder.jpg");
-		var origImage = path.join(fullPath, "folder.jpg") 
-		var newImage = path.join(fullPath, "folder-c.jpg") 
-		shelljs.exec(`wget "${poster}" -O "${folderPath}"`);
-		shelljs.exec(`convert "${folderPath}" -resize 500 -quality 90 "${fullPath}/folder-c.jpg"`);
+		var origImage = path.join(fullPath, "folder.jpg"); 
+		var newImage = path.join(fullPath, "folder1.jpg"); 
+		shelljs.exec(`wget "${poster}" -O "${origImage}"`);
+		shelljs.exec(`ffmpeg -y -i "${origImage}" -qscale:v 2 -vf scale=500:-1 "${newImage}"`);
 	
 
 		var origImageSize = fs.statSync(origImage).size;
@@ -83,8 +82,18 @@ shows.forEach((show) => {
 		}
 	}
 
-	JSON.parse(tracks).forEach((track, index) => {
-		if (index > 0) { return; }
-		shelljs.exec(`wget "https://archive.org/download/${baseUrl}/${track.orig}" -P "${fullPath}"`);	
+	JSON.parse(tracks).forEach((track, trackIndex, trackArray) => {
+		var title = track.title.replace(/^\d+\.\s+/, "").replace(/(\/|\\)/g, "-");
+		var trackNum = String(trackIndex + 1);
+		trackNum = trackNum.length === 1 ? `0${trackNum}` : trackNum; 
+		var outputTrack = `${trackNum} - ${title}.mp3`;
+		var input = path.join(fullPath, track.orig);
+		var output = path.join(fullPath, outputTrack);
+
+		console.log(`\n\nProcessing track ${trackIndex + 1} of ${trackArray.length + 1}...\n\n`)
+		shelljs.exec(`wget "https://archive.org/download/${baseUrl}/${track.orig}" -P "${fullPath}"`);
+
+		shelljs.exec(`ffmpeg -i "${input}" -i "${origImage}" -map 0:a -codec:a libmp3lame -b:a 320k -metadata artist="${artist}" -metadata track="${trackNum}" -metadata date="${date.replace(".", "-")}" -metadata title="${title}" -metadata album="${date} ${venue}, ${location}" -map 1:v -c:v copy -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (Front)" -id3v2_version 4 "${output}"`);
+		fs.unlinkSync(input);
 	});
 });
