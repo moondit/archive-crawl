@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "commander": "^2.12.2",
     "shelljs": "^0.7.8"
   }
 }
